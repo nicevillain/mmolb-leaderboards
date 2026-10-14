@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MMOLB Leaderboards</title>
+<meta name="description" content="Greater League leaders, team boards and SuperStar Rosters for MMOLB, refreshed hourly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a night-game scoreboard — header strip, tab rail, then a wrap grid of
+   stat cards; team colour rides each row's left edge. Dark-first, light mirrored. */
+:root {
+  --bg: #0c1311;
+  --surface: #131d1a;
+  --surface-2: #1a2723;
+  --line: #24352f;
+  --fg: #e7efe9;
+  --muted: #8ea69c;
+  --accent: #f0b35a;         /* infield clay under the lights */
+  --accent-ink: #1b1206;
+  --hit: rgba(240,179,90,.16);
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Barlow", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f1ea; --surface: #ffffff; --surface-2: #f6f4ee; --line: #ddd8cb;
+    --fg: #1b2420; --muted: #5d6b65; --accent: #b86a12; --accent-ink: #ffffff;
+    --hit: rgba(184,106,18,.12); color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f1ea; --surface: #ffffff; --surface-2: #f6f4ee; --line: #ddd8cb;
+  --fg: #1b2420; --muted: #5d6b65; --accent: #b86a12; --accent-ink: #ffffff;
+  --hit: rgba(184,106,18,.12); color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.4 var(--body);
+  font-variant-numeric: tabular-nums;
+  padding-inline: 16px;
+  padding-block: env(safe-area-inset-top, 0px) calc(32px + env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 18px; }
+#view { display: grid; gap: 14px; min-width: 0; }
+#view > .grid + .section-head { margin-top: 14px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between;
+  gap: 8px 24px; padding-top: 24px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+h1 { font: 700 clamp(30px, 6vw, 46px)/1 var(--display); letter-spacing: .01em; margin: 0;
+  text-transform: uppercase; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.meta b { color: var(--fg); font-weight: 600; }
+
+nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab { font: 600 17px/1 var(--display); letter-spacing: .06em; text-transform: uppercase;
+  background: transparent; color: var(--muted); border: 1px solid transparent;
+  padding: 10px 14px; border-radius: 6px; cursor: pointer; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.tab:focus-visible, .chip:focus-visible, select:focus-visible, input:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 14px/1 var(--body); background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--hit); }
+label.field { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+select, input[type="search"] { font: 500 14px var(--body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 0; }
+input[type="search"] { width: 190px; max-width: 100%; }
+.spacer { flex: 1 1 0; }
+
+.notice { background: var(--hit); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  padding: 9px 12px; border-radius: 6px; font-size: 14px; }
+
+.section-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h2 { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin: 0; }
+.section-head .min { color: var(--muted); font-size: 14px; }
+
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card h3 { font: 600 18px/1.15 var(--display); letter-spacing: .04em; text-transform: uppercase;
+  margin: 0; padding: 11px 12px 9px; display: flex; justify-content: space-between; gap: 8px;
+  border-bottom: 1px solid var(--line); }
+.card h3 small { font: 500 12px/1.4 var(--body); text-transform: none; letter-spacing: 0;
+  color: var(--muted); white-space: nowrap; }
+ol.rows { list-style: none; margin: 0; padding: 4px 0; flex: 1; }
+.row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center;
+  gap: 8px; padding: 5px 12px 5px 9px; border-left: 3px solid var(--tc, transparent); }
+.row.hit { background: var(--hit); }
+.rk { color: var(--muted); font-size: 13px; text-align: right; }
+.who { min-width: 0; }
+.who .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.who .tm { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; display: block; }
+.val { font: 600 17px/1 var(--display); letter-spacing: .02em; }
+.empty { color: var(--muted); padding: 12px; font-size: 14px; }
+.foot { border-top: 1px dashed var(--line); padding: 7px 12px 9px; display: grid;
+  grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; color: var(--muted); }
+.foot b { color: var(--fg); font-weight: 600; text-align: right; }
+
+/* SuperStar rosters */
+.divs { display: grid; gap: 18px; }
+.div-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.div-card h3 { font: 700 22px/1 var(--display); text-transform: uppercase; letter-spacing: .04em;
+  margin: 0; padding: 13px 14px; border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.scroll { overflow-x: auto; }
+table.ss { border-collapse: collapse; width: 100%; min-width: 360px; }
+table.ss th { font: 600 13px/1 var(--display); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+table.ss td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.ss tr.sep td { padding: 0; height: 6px; background: var(--surface-2); }
+td.pos { font: 700 16px/1.2 var(--display); color: var(--accent); width: 44px; }
+.slot { border-left: 3px solid var(--tc, transparent); padding-left: 8px; min-width: 150px; }
+.slot .nm { font-weight: 600; }
+.slot .tm { color: var(--muted); font-size: 12.5px; }
+.slot .st { font: 600 15px/1.2 var(--display); letter-spacing: .02em; }
+.slot.dim { opacity: .5; font-style: italic; }
+.slot.tied .nm::after { content: " *"; color: var(--accent); }
+.alt { display: none; }
+.show-alts .alt { display: table-cell; }
+.legend { color: var(--muted); font-size: 13px; padding: 10px 14px; }
+.toggle { font: 500 13px var(--body); color: var(--fg); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+
+.state { padding: 48px 0; text-align: center; color: var(--muted); }
+.state.err { color: var(--fg); }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (prefers-reduced-motion: no-preference) { .tab, .chip { transition: background .15s, color .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>MMOLB <span>Leaderboards</span></h1>
+    <div class="meta" id="meta">Loading the latest numbers…</div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Boards">
+    <button class="tab" role="tab" id="tab-leaders" data-tab="leaders" aria-selected="true">Greater League Leaders</button>
+    <button class="tab" role="tab" id="tab-teams" data-tab="teams" aria-selected="false">Greater Teams</button>
+    <button class="tab" role="tab" id="tab-superstar" data-tab="superstar" aria-selected="false">SuperStar Rosters</button>
+  </nav>
+
+  <main id="view"><div class="state">Loading leaderboards…</div></main>
+
+  <footer>Stats from the MMOLB API and MMOLDB. Rate leaders need the qualifying minimum shown on each board; League Average and Standard Deviation are measured over qualified players.</footer>
+</div>
+
+<script>
+"use strict";
+const $ = (sel, el = document) => el.querySelector(sel);
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null) el.append(kid.nodeType ? kid : String(kid));
+  return el;
+};
+
+const state = { data: null, tab: "leaders", section: "batting", min: null, query: "", alts: false };
+const store = {
+  get(k) { try { return localStorage.getItem("mmolb-lb:" + k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem("mmolb-lb:" + k, v); } catch { /* storage blocked */ } },
+};
+
+// ── number formatting: mirrors the Sheets number formats per card ──
+function fmtVal(v, fmt, summary = false) {
+  if (v == null) return "—";
+  if (fmt === "d") return summary ? v.toFixed(1) : String(Math.round(v));
+  let m = /^\.(\d+)%$/.exec(fmt);
+  if (m) { const d = Math.max(+m[1], summary && +m[1] === 0 ? 1 : 0); return (v * 100).toFixed(d) + "%"; }
+  m = /^\.(\d+)f$/.exec(fmt);
+  if (m) {
+    const s = v.toFixed(+m[1]);
+    // Baseball convention: .301, not 0.301
+    return (+m[1] === 3 && Math.abs(v) < 1) ? s.replace(/^(-?)0\./, "$1.") : s;
+  }
+  return String(v);
+}
+
+function teamLabel(tid) {
+  const t = state.data.teams[tid];
+  if (!t) return { text: "", color: null };
+  return { text: [t.league_emoji, t.emoji].filter(Boolean).join("") + " " + t.name, color: t.color };
+}
+
+function ago(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  const hrs = Math.round(mins / 60);
+  return hrs < 48 ? hrs + " h ago" : Math.round(hrs / 24) + " days ago";
+}
+
+// ── leaders ──
+function currentSection() {
+  return state.data.leaders.find(s => s.key === state.section) || state.data.leaders[0];
+}
+function qualKind(sec) { return sec.cards.find(c => c.qual)?.qual || null; }
+function defaultMin(kind) { return kind ? state.data.thresholds[kind] : null; }
+
+function minOptions(kind) {
+  const q = defaultMin(kind);
+  const vals = new Set([q]);
+  for (const f of [0, 0.25, 0.5, 0.75, 1.25, 1.5]) vals.add(Math.max(1, Math.round(q * f)));
+  return [...vals].sort((a, b) => a - b);
+}
+
+function cardRows(card, minVal, kind) {
+  const q = defaultMin(kind);
+  // At the published bar, show exactly the published list.
+  if (!card.qual || minVal == null || minVal === q || !card.pool) return card.top;
+  return card.pool.filter(r => r[2] >= minVal).slice(0, Math.max(card.top.length, 10));
+}
+
+function playerCard(card, minVal, kind, qualText) {
+  const rows = cardRows(card, minVal, kind);
+  const query = state.query.trim().toLowerCase();
+  const list = h("ol", { class: "rows" });
+  rows.forEach((r, i) => {
+    const p = state.data.players[r[0]];
+    const team = teamLabel(p[2]);
+    const hit = query && (p[1].toLowerCase().includes(query) || team.text.toLowerCase().includes(query));
+    list.append(h("li", { class: "row" + (hit ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
+      h("span", { class: "rk" }, i + 1),
+      h("span", { class: "who" }, h("span", { class: "nm", title: p[1] }, p[1]),
+        h("span", { class: "tm", title: team.text }, team.text)),
+      h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
+  });
+  if (!rows.length) list.append(h("li", { class: "empty" }, "No player meets this minimum yet."));
+  return h("article", { class: "card" },
+    h("h3", {}, card.label, card.note ? h("small", {}, card.note) : null),
+    list,
+    summaryFoot(card, qualText));
+}
+
+function summaryFoot(card, qualText) {
+  if (card.avg == null && card.sd == null) return null;
+  return h("div", { class: "foot", title: "Measured over qualified players" + (qualText ? ` (${qualText})` : "") },
+    h("span", {}, "League average"), h("b", {}, fmtVal(card.avg, card.fmt, true)),
+    h("span", {}, "Standard deviation"), h("b", {}, fmtVal(card.sd, card.fmt, true)));
+}
+
+function renderLeaders(view) {
+  const sec = currentSection();
+  const kind = qualKind(sec);
+  const unit = kind === "ip" ? "IP" : "PA";
+  if (kind && (state.min == null || state.minKind !== kind)) { state.min = defaultMin(kind); state.minKind = kind; }
+
+  const chips = h("div", { class: "chips", role: "group", "aria-label": "Board" },
+    state.data.leaders.map(s => h("button", {
+      class: "chip", "aria-pressed": String(s.key === sec.key),
+      onclick: () => { state.section = s.key; store.set("section", s.key); render(); },
+    }, s.title)));
+
+  const controls = h("div", { class: "controls" }, chips, h("span", { class: "spacer" }));
+  if (kind) {
+    const sel = h("select", { id: "min-select", "aria-label": `Minimum ${unit}` },
+      minOptions(kind).map(v => h("option", { value: v, selected: v === state.min },
+        v === defaultMin(kind) ? `${v} ${unit} (qualified)` : `${v} ${unit}`)));
+    sel.addEventListener("change", () => { state.min = +sel.value; render(); });
+    controls.append(h("label", { class: "field", for: "min-select" }, `Min ${unit}`, sel));
+  }
+  const search = h("input", { type: "search", id: "player-search", placeholder: "Highlight a player or team",
+    value: state.query, "aria-label": "Highlight a player or team" });
+  search.addEventListener("input", () => { state.query = search.value; renderGridOnly(); });
+  controls.append(search);
+
+  view.append(controls);
+  if (kind && state.min !== defaultMin(kind)) {
+    view.append(h("div", { class: "notice" },
+      `Rate boards show players with at least ${state.min} ${unit}. League average and standard deviation stay at the qualified bar (${defaultMin(kind)} ${unit}).`));
+  }
+  view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
+    h("span", { class: "min" }, `${state.data.days} · ${sec.min}`)));
+  const grid = h("div", { class: "grid", id: "card-grid" });
+  sec.cards.forEach(c => grid.append(playerCard(c, state.min, kind, sec.min)));
+  view.append(grid);
+}
+
+function renderGridOnly() {
+  const grid = $("#card-grid");
+  if (!grid) return;
+  const sec = currentSection(), kind = qualKind(sec);
+  grid.replaceChildren(...sec.cards.map(c => playerCard(c, state.min, kind, sec.min)));
+}
+
+// ── teams ──
+function renderTeams(view) {
+  const tb = state.data.teams_board;
+  for (const sec of tb.sections) {
+    view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
+      h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
+    const grid = h("div", { class: "grid" });
+    for (const card of sec.cards) {
+      const list = h("ol", { class: "rows" });
+      card.top.forEach((r, i) => {
+        const team = teamLabel(r[0]);
+        list.append(h("li", { class: "row", style: team.color ? `--tc:${team.color}` : null },
+          h("span", { class: "rk" }, i + 1),
+          h("span", { class: "who" }, h("span", { class: "nm", title: team.text }, team.text)),
+          h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
+      });
+      grid.append(h("article", { class: "card" }, h("h3", {}, card.label), list, summaryFoot(card, tb.min)));
+    }
+    view.append(grid);
+  }
+}
+
+// ── SuperStar rosters ──
+function slotCell(e, cls = "") {
+  if (!e || e.player === "—") return h("td", { class: cls }, h("div", { class: "slot" }, "—"));
+  const classes = ["slot", e.tied ? "tied" : "", e.status === "confirmed" ? "dim" : ""].join(" ");
+  return h("td", { class: cls },
+    h("div", { class: classes, style: e.color ? `--tc:${e.color}` : null },
+      h("div", { class: "nm" }, e.player),
+      h("div", { class: "tm" }, [e.emoji, e.team].filter(Boolean).join(" ")),
+      h("div", { class: "st" }, `${e.value} ${e.stat}`)));
+}
+
+function renderSuperstar(view) {
+  const ss = state.data.superstar;
+  const toggle = h("button", { class: "toggle", onclick: () => { state.alts = !state.alts; render(); } },
+    state.alts ? "Hide 2nd–4th" : "Show 2nd–4th");
+  view.append(h("div", { class: "section-head" }, h("h2", {}, "SuperStar Rosters"),
+    h("span", { class: "min" }, `${state.data.days} · ${ss.min}`), h("span", { class: "spacer" }), toggle));
+  const wrap = h("div", { class: "divs" + (state.alts ? " show-alts" : "") });
+  for (const d of ss.divisions) {
+    const table = h("table", { class: "ss" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Pos"), h("th", {}, "Roster"),
+        h("th", { class: "alt" }, "2nd"), h("th", { class: "alt" }, "3rd"), h("th", { class: "alt" }, "4th"))));
+    const body = h("tbody");
+    d.roster.forEach((e, i) => {
+      if (i === 9) body.append(h("tr", { class: "sep" }, h("td", { colspan: 5 })));
+      body.append(h("tr", {}, h("td", { class: "pos" }, e.pos), slotCell(e),
+        d.alternates.map(alt => slotCell(alt[i], "alt"))));
+    });
+    table.append(body);
+    wrap.append(h("section", { class: "div-card" },
+      h("h3", {}, `${d.emoji} ${d.division} Division`),
+      h("div", { class: "scroll" }, table)));
+  }
+  view.append(wrap);
+  view.append(h("p", { class: "legend" },
+    "Each slot goes to the division's leader in that stat; a player who leads several takes the first. * marks a slot that needed a tiebreaker. Faded alternates already hold a roster spot."));
+}
+
+// ── shell ──
+function render() {
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.tab === state.tab)));
+  const view = $("#view");
+  const scroll = window.scrollY;
+  view.replaceChildren();
+  if (state.tab === "leaders") renderLeaders(view);
+  else if (state.tab === "teams") renderTeams(view);
+  else renderSuperstar(view);
+  window.scrollTo(0, scroll);
+}
+
+function setTab(tab, push = true) {
+  state.tab = tab;
+  if (push) history.replaceState(null, "", "#" + tab);
+  render();
+}
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
+
+async function load() {
+  try {
+    const res = await fetch("leaderboards.json?v=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error(`the data file answered ${res.status}`);
+    const data = await res.json();
+    if (data.schema !== 1) throw new Error(`unexpected data version ${data.schema}`);
+    state.data = data;
+    const meta = $("#meta");
+    meta.replaceChildren(
+      h("span", {}, h("b", {}, `Season ${data.season}`), ` · ${data.days}`),
+      h("span", { title: new Date(data.generated_at).toLocaleString() }, "Updated " + ago(data.generated_at)));
+    const saved = store.get("section");
+    if (saved && data.leaders.some(s => s.key === saved)) state.section = saved;
+    const hash = location.hash.slice(1);
+    setTab(["leaders", "teams", "superstar"].includes(hash) ? hash : "leaders", false);
+  } catch (e) {
+    $("#view").replaceChildren(h("div", { class: "state err" },
+      `Couldn't load the leaderboards: ${e.message}. Refresh the page to try again.`));
+    $("#meta").textContent = "Data unavailable";
+  }
+}
+load();
+</script>
+</body>
+</html>
