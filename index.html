@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>MMOLB Leaderboards</title>
-<meta name="description" content="Greater League leaders, team boards and SuperStar Rosters for MMOLB, refreshed hourly.">
+<meta name="description" content="Greater and Lesser League leaders, team boards and SuperStar Rosters for MMOLB, refreshed hourly.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
@@ -52,8 +52,23 @@ h1 { font: 700 22px/1.2 var(--body); margin: 0; letter-spacing: -.01em; }
 .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .meta b { color: var(--fg); font-weight: 600; }
 
-nav.tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line);
-  margin-top: -6px; scrollbar-width: none; }
+/* The tab rail carries the room picker at its right end: Greater | Lesser, and the
+   league dropdown while Lesser is on. On a phone the picker takes its own line above. */
+.rail { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 16px;
+  border-bottom: 1px solid var(--line); margin-top: -6px; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.picker { display: flex; align-items: center; gap: 8px; align-self: center; flex: none; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: 600 13px/1 var(--body); background: var(--surface); color: var(--muted);
+  border: 0; padding: 8px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { color: var(--fg); background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--accent); }
+@media (max-width: 720px) {
+  .rail { flex-wrap: wrap; }
+  .picker { order: -1; width: 100%; padding-bottom: 4px; }
+  .picker select { flex: 1; }
+}
 .tab { font: 600 14px/1 var(--body); background: transparent; color: var(--muted);
   border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
   padding: 12px 14px; cursor: pointer; white-space: nowrap; }
@@ -165,11 +180,14 @@ footer { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--lin
     <div class="meta" id="meta">Loading the latest numbers…</div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Boards">
-    <button class="tab" role="tab" id="tab-leaders" data-tab="leaders" aria-selected="true">Greater League Leaders</button>
-    <button class="tab" role="tab" id="tab-teams" data-tab="teams" aria-selected="false">Greater Teams</button>
-    <button class="tab" role="tab" id="tab-superstar" data-tab="superstar" aria-selected="false">SuperStar Rosters</button>
-  </nav>
+  <div class="rail">
+    <nav class="tabs" role="tablist" aria-label="Boards">
+      <button class="tab" role="tab" id="tab-leaders" data-tab="leaders" aria-selected="true">Greater League Leaders</button>
+      <button class="tab" role="tab" id="tab-teams" data-tab="teams" aria-selected="false">Greater Teams</button>
+      <button class="tab" role="tab" id="tab-superstar" data-tab="superstar" aria-selected="false">SuperStar Rosters</button>
+    </nav>
+    <div class="picker" id="picker"></div>
+  </div>
 
   <main id="view"><div class="state">Loading leaderboards…</div></main>
 
@@ -192,7 +210,10 @@ const h = (tag, attrs = {}, ...kids) => {
   return el;
 };
 
-const state = { data: null, tab: "leaders", section: "batting", teamSection: null, min: null, query: "", alts: false };
+// `data` is the board on screen; `boards` caches each board file once fetched.
+const state = { index: null, boards: {}, data: null, board: "gl", llBoard: "ll", pending: null,
+  tab: "leaders", section: "batting", teamSection: null, min: null, query: "", alts: false };
+const TABS = ["leaders", "teams", "superstar"];
 const store = {
   get(k) { try { return localStorage.getItem("mmolb-lb:" + k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem("mmolb-lb:" + k, v); } catch { /* storage blocked */ } },
@@ -217,6 +238,12 @@ function teamLabel(tid) {
   const t = state.data.teams[tid];
   if (!t) return { text: "", color: null };
   return { text: [t.league_emoji, t.emoji].filter(Boolean).join("") + " " + t.name, color: t.color };
+}
+
+// "Greater Batting Leaders", "Lesser Batting Leaders", "🔮 Psychic Batting Leaders".
+function boardTitle(title) {
+  const b = state.data.board;
+  return [b.emoji, b.short, title].filter(Boolean).join(" ");
 }
 
 function ago(iso) {
@@ -314,7 +341,7 @@ function renderLeaders(view) {
     view.append(h("div", { class: "notice" },
       `Rate boards show players with at least ${state.min} ${unit}. League average and standard deviation stay at the qualified bar (${defaultMin(kind)} ${unit}).`));
   }
-  view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
+  view.append(h("div", { class: "section-head" }, h("h2", {}, boardTitle(sec.title)),
     h("span", { class: "min" }, `${state.data.days} · ${sec.min}`)));
   const grid = h("div", { class: "grid", id: "card-grid" });
   sec.cards.forEach(c => grid.append(playerCard(c, state.min, kind, sec.min)));
@@ -350,7 +377,7 @@ function renderTeams(view) {
       onclick: () => { state.teamSection = s.key; store.set("team_section", s.key); render(); },
     }, s.title)));
   view.append(h("div", { class: "controls" }, chips, h("span", { class: "spacer" }), searchBox()));
-  view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
+  view.append(h("div", { class: "section-head" }, h("h2", {}, boardTitle(sec.title)),
     h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
   view.append(teamsGrid(sec));
 }
@@ -390,12 +417,16 @@ function renderSuperstar(view) {
   const toggle = h("button", { class: "toggle", onclick: () => { state.alts = !state.alts; render(); } },
     state.alts ? "Hide 2nd–4th" : "Show 2nd–4th");
   view.append(h("div", { class: "controls" }, h("span", { class: "spacer" }), searchBox()));
-  view.append(h("div", { class: "section-head" }, h("h2", {}, "SuperStar Rosters"),
+  view.append(h("div", { class: "section-head" }, h("h2", {}, superstarName()),
     h("span", { class: "min" }, `${state.data.days} · ${ss.min}`), h("span", { class: "spacer" }), toggle));
   view.append(superstarDivs());
+  const pool = { gl: "the division's leader", ll: "the leader across every Lesser League",
+    ll_one: "the league's leader" }[state.data.board.kind];
   view.append(h("p", { class: "legend" },
-    "Each slot goes to the division's leader in that stat; a player who leads several takes the first. * marks a slot that needed a tiebreaker. Faded alternates already hold a roster spot."));
+    `Each slot goes to ${pool} in that stat; a player who leads several takes the first. * marks a slot that needed a tiebreaker. Faded alternates already hold a roster spot.`));
 }
+
+function superstarName() { return state.board === "gl" ? "SuperStar Rosters" : "LesserStar Rosters"; }
 
 function superstarDivs() {
   const ss = state.data.superstar;
@@ -415,15 +446,69 @@ function superstarDivs() {
     });
     table.append(body);
     wrap.append(h("section", { class: "div-block" },
-      h("h3", {}, `${d.emoji} ${d.division} Division`),
+      h("h3", {}, [d.emoji, d.title].filter(Boolean).join(" ")),
       h("div", { class: "tbl" }, table)));
   }
   return wrap;
 }
 
+// ── room picker: Greater | Lesser, and which Lesser board ──
+function renderRail() {
+  const room = state.board === "gl" ? "Greater" : "Lesser";
+  const labels = { leaders: `${room} League Leaders`, teams: `${room} Teams`, superstar: superstarName() };
+  document.querySelectorAll(".tab").forEach(t => {
+    t.textContent = labels[t.dataset.tab];
+    t.setAttribute("aria-selected", String(t.dataset.tab === state.tab));
+  });
+  const seg = h("div", { class: "seg", role: "group", "aria-label": "League" },
+    h("button", { "aria-pressed": String(room === "Greater"), onclick: () => setBoard("gl") }, "Greater"),
+    h("button", { "aria-pressed": String(room === "Lesser"), onclick: () => setBoard(state.llBoard) }, "Lesser"));
+  const picker = $("#picker");
+  picker.replaceChildren(seg);
+  if (room === "Lesser") {
+    const sel = h("select", { "aria-label": "Lesser League" },
+      state.index.boards.filter(b => b.kind !== "gl").map(b =>
+        h("option", { value: b.key, selected: b.key === state.board },
+          [b.emoji, b.name].filter(Boolean).join(" "))));
+    sel.addEventListener("change", () => setBoard(sel.value));
+    picker.append(sel);
+  }
+}
+
+// Fetches a board's file once; a later pick of the same board reads the cache.
+async function loadBoard(key) {
+  if (state.boards[key]) return state.boards[key];
+  const entry = state.index.boards.find(b => b.key === key);
+  if (!entry) throw new Error(`no board named ${key}`);
+  const res = await fetch(`${entry.file}?v=${encodeURIComponent(state.index.generated_at)}`);
+  if (!res.ok) throw new Error(`the ${entry.name} data file answered ${res.status}`);
+  const data = await res.json();
+  if (data.schema !== 2) throw new Error(`unexpected data version ${data.schema}`);
+  return (state.boards[key] = data);
+}
+
+async function setBoard(key, push = true) {
+  state.pending = key;
+  if (!state.boards[key]) $("#view").replaceChildren(h("div", { class: "state" }, "Loading leaderboards…"));
+  try {
+    const data = await loadBoard(key);
+    if (state.pending !== key) return;          // a later pick won the race
+    state.data = data;
+    state.board = key;
+    state.min = null;                           // each board has its own qualifying bar
+    if (key !== "gl") { state.llBoard = key; store.set("ll_board", key); }
+    store.set("board", key);
+    if (push) history.replaceState(null, "", `#${key}/${state.tab}`);
+    render();
+  } catch (e) {
+    $("#view").replaceChildren(h("div", { class: "state err" },
+      `Couldn't load the leaderboards: ${e.message}. Refresh the page to try again.`));
+  }
+}
+
 // ── shell ──
 function render() {
-  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.tab === state.tab)));
+  renderRail();
   const view = $("#view");
   const scroll = window.scrollY;
   view.replaceChildren();
@@ -435,7 +520,7 @@ function render() {
 
 function setTab(tab, push = true) {
   state.tab = tab;
-  if (push) history.replaceState(null, "", "#" + tab);
+  if (push) history.replaceState(null, "", `#${state.board}/${tab}`);
   render();
 }
 
@@ -443,21 +528,28 @@ document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () =>
 
 async function load() {
   try {
-    const res = await fetch("leaderboards.json?v=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error(`the data file answered ${res.status}`);
-    const data = await res.json();
-    if (data.schema !== 1) throw new Error(`unexpected data version ${data.schema}`);
-    state.data = data;
+    const res = await fetch("index.json?v=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error(`the data index answered ${res.status}`);
+    const index = await res.json();
+    if (index.schema !== 2) throw new Error(`unexpected data version ${index.schema}`);
+    state.index = index;
     const meta = $("#meta");
     meta.replaceChildren(
-      h("span", {}, h("b", {}, `Season ${data.season}`), ` · ${data.days}`),
-      h("span", { title: new Date(data.generated_at).toLocaleString() }, "Updated " + ago(data.generated_at)));
-    const saved = store.get("section");
-    if (saved && data.leaders.some(s => s.key === saved)) state.section = saved;
-    const savedTeam = store.get("team_section");
-    if (savedTeam && data.teams_board.sections.some(s => s.key === savedTeam)) state.teamSection = savedTeam;
-    const hash = location.hash.slice(1);
-    setTab(["leaders", "teams", "superstar"].includes(hash) ? hash : "leaders", false);
+      h("span", {}, h("b", {}, `Season ${index.season}`), ` · ${index.days}`),
+      h("span", { title: new Date(index.generated_at).toLocaleString() }, "Updated " + ago(index.generated_at)));
+    const known = key => index.boards.some(b => b.key === key);
+    // Section picks are per tab, not per board: a key the board lacks falls back to its first.
+    state.section = store.get("section") || state.section;
+    state.teamSection = store.get("team_section");
+    const savedLl = store.get("ll_board");
+    if (known(savedLl)) state.llBoard = savedLl;
+    // A link names the board and tab ("#ll-psychic/teams"); a bare tab ("#teams") is a
+    // pre-Lesser link and means the Greater board. Otherwise the viewer's last board.
+    const [a, b] = location.hash.slice(1).split("/");
+    let board = known(store.get("board")) ? store.get("board") : "gl";
+    if (known(a)) { board = a; if (TABS.includes(b)) state.tab = b; }
+    else if (TABS.includes(a)) { board = "gl"; state.tab = a; }
+    await setBoard(board, false);
   } catch (e) {
     $("#view").replaceChildren(h("div", { class: "state err" },
       `Couldn't load the leaderboards: ${e.message}. Refresh the page to try again.`));
