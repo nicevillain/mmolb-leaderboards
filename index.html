@@ -100,10 +100,11 @@ ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
   gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
 /* The search hit keeps its team fill and gains an accent outline instead. */
-.row.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 3px var(--accent),
+.row.hit, .slot.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 3px var(--accent),
   0 0 10px 1px var(--accent); position: relative; z-index: 1;
   background: color-mix(in srgb, var(--tc, transparent) 26%, var(--hit)); }
-.row.hit .nm { color: var(--accent); }
+.row.hit .nm, .slot.hit .nm { color: var(--accent); }
+.slot.dim.hit { opacity: 1; }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
 .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
@@ -247,14 +248,25 @@ function cardRows(card, minVal, kind) {
   return card.pool.filter(r => r[2] >= minVal).slice(0, Math.max(card.top.length, 10));
 }
 
+// ── search highlight, shared by every tab ──
+function isHit(...texts) {
+  const query = state.query.trim().toLowerCase();
+  return !!query && texts.some(t => t && t.toLowerCase().includes(query));
+}
+function searchBox() {
+  const search = h("input", { type: "search", id: "player-search", placeholder: "Highlight a player or team",
+    value: state.query, "aria-label": "Highlight a player or team" });
+  search.addEventListener("input", () => { state.query = search.value; renderGridOnly(); });
+  return search;
+}
+
 function playerCard(card, minVal, kind, qualText) {
   const rows = cardRows(card, minVal, kind);
-  const query = state.query.trim().toLowerCase();
   const list = h("ol", { class: "rows" });
   rows.forEach((r, i) => {
     const p = state.data.players[r[0]];
     const team = teamLabel(p[2]);
-    const hit = query && (p[1].toLowerCase().includes(query) || team.text.toLowerCase().includes(query));
+    const hit = isHit(p[1], team.text);
     list.append(h("li", { class: "row" + (hit ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
       h("span", { class: "rk" }, i + 1),
       h("span", { class: "who", title: team.text ? `${p[1]} - ${team.text}` : p[1] },
@@ -295,10 +307,7 @@ function renderLeaders(view) {
     sel.addEventListener("change", () => { state.min = +sel.value; render(); });
     controls.append(h("label", { class: "field", for: "min-select" }, `Min ${unit}`, sel));
   }
-  const search = h("input", { type: "search", id: "player-search", placeholder: "Highlight a player or team",
-    value: state.query, "aria-label": "Highlight a player or team" });
-  search.addEventListener("input", () => { state.query = search.value; renderGridOnly(); });
-  controls.append(search);
+  controls.append(searchBox());
 
   view.append(controls);
   if (kind && state.min !== defaultMin(kind)) {
@@ -312,45 +321,63 @@ function renderLeaders(view) {
   view.append(grid);
 }
 
+// Redraws only the boards under the search box, so typing keeps the input's focus.
 function renderGridOnly() {
-  const grid = $("#card-grid");
-  if (!grid) return;
-  const sec = currentSection(), kind = qualKind(sec);
-  grid.replaceChildren(...sec.cards.map(c => playerCard(c, state.min, kind, sec.min)));
+  if (state.tab === "leaders") {
+    const grid = $("#card-grid");
+    if (!grid) return;
+    const sec = currentSection(), kind = qualKind(sec);
+    grid.replaceChildren(...sec.cards.map(c => playerCard(c, state.min, kind, sec.min)));
+  } else if (state.tab === "teams") {
+    $("#card-grid")?.replaceWith(teamsGrid(currentTeamSection()));
+  } else {
+    $("#ss-divs")?.replaceWith(superstarDivs());
+  }
 }
 
 // ── teams ──
+function currentTeamSection() {
+  const tb = state.data.teams_board;
+  return tb.sections.find(s => s.key === state.teamSection) || tb.sections[0];
+}
+
 function renderTeams(view) {
   const tb = state.data.teams_board;
-  const sec = tb.sections.find(s => s.key === state.teamSection) || tb.sections[0];
+  const sec = currentTeamSection();
   const chips = h("div", { class: "chips", role: "group", "aria-label": "Board" },
     tb.sections.map(s => h("button", {
       class: "chip", "aria-pressed": String(s.key === sec.key),
       onclick: () => { state.teamSection = s.key; store.set("team_section", s.key); render(); },
     }, s.title)));
-  view.append(h("div", { class: "controls" }, chips));
+  view.append(h("div", { class: "controls" }, chips, h("span", { class: "spacer" }), searchBox()));
   view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
     h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
-  const grid = h("div", { class: "grid" });
+  view.append(teamsGrid(sec));
+}
+
+function teamsGrid(sec) {
+  const tb = state.data.teams_board;
+  const grid = h("div", { class: "grid", id: "card-grid" });
   for (const card of sec.cards) {
     const list = h("ol", { class: "rows" });
     card.top.forEach((r, i) => {
       const team = teamLabel(r[0]);
-      list.append(h("li", { class: "row", style: team.color ? `--tc:${team.color}` : null },
+      list.append(h("li", { class: "row" + (isHit(team.text) ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
         h("span", { class: "rk" }, i + 1),
         h("span", { class: "who team-only", title: team.text }, h("span", { class: "nm" }, team.text)),
         h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
     });
     grid.append(h("article", { class: "card" }, h("h3", {}, card.label), list, summaryFoot(card, tb.min)));
   }
-  view.append(grid);
+  return grid;
 }
 
 // ── SuperStar rosters ──
 function slotCell(e, cls = "") {
   if (!e || e.player === "—") return h("td", { class: cls }, h("div", { class: "slot" }, "—"));
-  const classes = ["slot", e.tied ? "tied" : "", e.status === "confirmed" ? "dim" : ""].join(" ");
   const team = [e.emoji, e.team].filter(Boolean).join(" ");
+  const classes = ["slot", e.tied ? "tied" : "", e.status === "confirmed" ? "dim" : "",
+    isHit(e.player, team) ? "hit" : ""].join(" ");
   return h("td", { class: cls },
     h("div", { class: classes, style: e.color ? `--tc:${e.color}` : null },
       h("span", { class: "who", title: team ? `${e.player} - ${team}` : e.player },
@@ -362,9 +389,17 @@ function renderSuperstar(view) {
   const ss = state.data.superstar;
   const toggle = h("button", { class: "toggle", onclick: () => { state.alts = !state.alts; render(); } },
     state.alts ? "Hide 2nd–4th" : "Show 2nd–4th");
+  view.append(h("div", { class: "controls" }, h("span", { class: "spacer" }), searchBox()));
   view.append(h("div", { class: "section-head" }, h("h2", {}, "SuperStar Rosters"),
     h("span", { class: "min" }, `${state.data.days} · ${ss.min}`), h("span", { class: "spacer" }), toggle));
-  const wrap = h("div", { class: "divs" + (state.alts ? " show-alts" : "") });
+  view.append(superstarDivs());
+  view.append(h("p", { class: "legend" },
+    "Each slot goes to the division's leader in that stat; a player who leads several takes the first. * marks a slot that needed a tiebreaker. Faded alternates already hold a roster spot."));
+}
+
+function superstarDivs() {
+  const ss = state.data.superstar;
+  const wrap = h("div", { class: "divs" + (state.alts ? " show-alts" : ""), id: "ss-divs" });
   for (const d of ss.divisions) {
     const table = h("table", { class: "ss" },
       h("thead", {}, h("tr", {}, h("th", {}, "Pos"), h("th", {}, "Roster"),
@@ -383,9 +418,7 @@ function renderSuperstar(view) {
       h("h3", {}, `${d.emoji} ${d.division} Division`),
       h("div", { class: "tbl" }, table)));
   }
-  view.append(wrap);
-  view.append(h("p", { class: "legend" },
-    "Each slot goes to the division's leader in that stat; a player who leads several takes the first. * marks a slot that needed a tiebreaker. Faded alternates already hold a roster spot."));
+  return wrap;
 }
 
 // ── shell ──
