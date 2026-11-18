@@ -23,14 +23,14 @@
   --muted: #8b8b8b;
   --team: #8fa3bf;           /* team names, the site's muted slate blue */
   --accent: #4d8eff;         /* active tab blue */
-  --hit: rgba(77,142,255,.14);
+  --hl-ink: #fff;            /* a highlighted name is its team colour mixed toward this */
   --body: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
   --bg: #f5f5f4; --surface: #ffffff; --surface-2: #efefed; --line: #dcdcd8; --row-line: #ececea;
   --fg: #161616; --muted: #6b6b6b; --team: #4a5f7d; --accent: #1f6feb;
-  --hit: rgba(31,111,235,.10); color-scheme: light;
+  --hl-ink: #000; color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -90,6 +90,7 @@ select { appearance: none; -webkit-appearance: none; padding-right: 34px; cursor
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center; }
 input[type="search"] { width: 210px; max-width: 100%; }
+#team-pick { width: 230px; max-width: 100%; text-overflow: ellipsis; }
 input::placeholder { color: var(--muted); }
 .spacer { flex: 1 1 0; }
 
@@ -108,17 +109,21 @@ h2 { font: 600 19px/1.2 var(--body); margin: 0; letter-spacing: -.005em; }
   border-bottom: 1px solid var(--line); }
 .card h3 small { display: block; font: 500 11.5px/1.4 var(--body); color: var(--muted); margin-top: 2px; }
 ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
-/* Team colour is the emphasis: a faded wash of it fills the row, a solid bar edges it. */
-.row, .slot { background: color-mix(in srgb, var(--tc, transparent) 26%, var(--surface));
+/* Team colour is the emphasis: a wash of it fills the row, a solid bar edges it. Mixed in
+   oklab, which keeps the colour's saturation where an sRGB mix toward black greys it out. */
+.row, .slot { background: color-mix(in oklab, var(--tc, var(--surface)) 36%, var(--surface));
   box-shadow: inset 4px 0 0 var(--tc, transparent); }
 .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center;
   gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
-/* The search hit keeps its team fill and gains an accent outline instead. */
-.row.hit, .slot.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 3px var(--accent),
-  0 0 10px 1px var(--accent); position: relative; z-index: 1;
-  background: color-mix(in srgb, var(--tc, transparent) 26%, var(--hit)); }
-.row.hit .nm, .slot.hit .nm { color: var(--accent); }
+/* A highlighted row is outlined and glows in its own team colour (accent blue when the team
+   has none); its fill deepens, and the name takes a lightened (light theme: darkened) tint
+   of the colour so it stays legible on that fill. */
+.row.hit, .slot.hit { --hc: var(--tc, var(--accent));
+  box-shadow: inset 4px 0 0 var(--hc), inset 0 0 0 3px var(--hc), 0 0 12px 2px var(--hc);
+  position: relative; z-index: 1;
+  background: color-mix(in oklab, var(--hc) 52%, var(--surface)); }
+.row.hit .nm, .slot.hit .nm { color: color-mix(in oklab, var(--hc) 45%, var(--hl-ink)); }
 .slot.dim.hit { opacity: 1; }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
@@ -131,10 +136,11 @@ ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
 .foot { background: var(--surface-2); border-top: 1px solid var(--line); padding: 8px 12px 9px;
   display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; font-size: 12.5px; color: var(--muted); }
 .foot span { font-weight: 600; color: var(--fg); }
-.foot b { color: var(--muted); font-weight: 500; text-align: right; }
+.foot b { color: var(--fg); font-weight: 500; text-align: right; }
 
 /* SuperStar rosters */
-.divs { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); }
+/* Columns stop at 560px so a lone roster (a Lesser board) keeps its stats near its names. */
+.divs { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 560px)); }
 .divs.show-alts { grid-template-columns: 1fr; }
 .div-block { display: grid; gap: 10px; min-width: 0; }
 .div-block h3 { font: 600 17px/1.2 var(--body); margin: 0; }
@@ -149,13 +155,14 @@ table.ss th:first-child, table.ss td:first-child { border-right: 1px solid var(-
 /* The field-player / pitcher break, placed before the first pitching slot. */
 table.ss tr.sep td { padding: 0; height: 8px; background: var(--surface-2); border-right: 0; }
 td.pos { font-weight: 700; color: var(--fg); width: 52px; }
-/* One line per slot, laid out like a leaders row: "name - team" ... "value stat". */
+/* Two lines per slot: the name, the team under it; "value stat" on the right. */
 .slot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px;
-  padding: 8px 12px; min-width: 200px; }
-.slot .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+  padding: 7px 12px; min-width: 200px; }
+.slot .who { display: grid; min-width: 0; font-size: 13.5px; line-height: 1.3; }
+.slot .who > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot .nm { font-weight: 600; }
-.slot .tm { color: var(--team); }
-.slot .tm::before { content: " - "; color: var(--muted); }
+.slot .tm { color: var(--team); font-size: 12.5px; }
+.slot .tm::before { content: none; }
 .slot .st { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .slot .st b { color: var(--fg); font-weight: 600; font-size: 13.5px; }
 .slot.dim { opacity: .45; font-style: italic; }
@@ -212,7 +219,7 @@ const h = (tag, attrs = {}, ...kids) => {
 
 // `data` is the board on screen; `boards` caches each board file once fetched.
 const state = { index: null, boards: {}, data: null, board: "gl", llBoard: "ll", pending: null,
-  tab: "leaders", section: "batting", teamSection: null, min: null, query: "", alts: false };
+  tab: "leaders", section: "batting", teamSection: null, min: null, query: "", team: "", alts: false };
 const TABS = ["leaders", "teams", "superstar"];
 const store = {
   get(k) { try { return localStorage.getItem("mmolb-lb:" + k); } catch { return null; } },
@@ -275,16 +282,24 @@ function cardRows(card, minVal, kind) {
   return card.pool.filter(r => r[2] >= minVal).slice(0, Math.max(card.top.length, 10));
 }
 
-// ── search highlight, shared by every tab ──
-function isHit(...texts) {
+// ── highlight, shared by every tab: a picked team, or rows matching the typed text ──
+function isHit(tid, ...texts) {
+  if (state.team && tid === state.team) return true;
   const query = state.query.trim().toLowerCase();
   return !!query && texts.some(t => t && t.toLowerCase().includes(query));
 }
 function searchBox() {
+  const teams = Object.keys(state.data.teams)
+    .map(tid => ({ tid, label: teamLabel(tid).text, name: state.data.teams[tid].name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const pick = h("select", { id: "team-pick", "aria-label": "Highlight a team" },
+    h("option", { value: "" }, "Highlight a team"),
+    teams.map(t => h("option", { value: t.tid, selected: t.tid === state.team }, t.label)));
+  pick.addEventListener("change", () => { state.team = pick.value; renderGridOnly(); });
   const search = h("input", { type: "search", id: "player-search", placeholder: "Highlight a player or team",
     value: state.query, "aria-label": "Highlight a player or team" });
   search.addEventListener("input", () => { state.query = search.value; renderGridOnly(); });
-  return search;
+  return [pick, search];
 }
 
 function playerCard(card, minVal, kind, qualText) {
@@ -293,7 +308,7 @@ function playerCard(card, minVal, kind, qualText) {
   rows.forEach((r, i) => {
     const p = state.data.players[r[0]];
     const team = teamLabel(p[2]);
-    const hit = isHit(p[1], team.text);
+    const hit = isHit(p[2], p[1], team.text);
     list.append(h("li", { class: "row" + (hit ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
       h("span", { class: "rk" }, i + 1),
       h("span", { class: "who", title: team.text ? `${p[1]} - ${team.text}` : p[1] },
@@ -334,7 +349,7 @@ function renderLeaders(view) {
     sel.addEventListener("change", () => { state.min = +sel.value; render(); });
     controls.append(h("label", { class: "field", for: "min-select" }, `Min ${unit}`, sel));
   }
-  controls.append(searchBox());
+  controls.append(...searchBox());
 
   view.append(controls);
   if (kind && state.min !== defaultMin(kind)) {
@@ -376,7 +391,7 @@ function renderTeams(view) {
       class: "chip", "aria-pressed": String(s.key === sec.key),
       onclick: () => { state.teamSection = s.key; store.set("team_section", s.key); render(); },
     }, s.title)));
-  view.append(h("div", { class: "controls" }, chips, h("span", { class: "spacer" }), searchBox()));
+  view.append(h("div", { class: "controls" }, chips, h("span", { class: "spacer" }), ...searchBox()));
   view.append(h("div", { class: "section-head" }, h("h2", {}, boardTitle(sec.title)),
     h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
   view.append(teamsGrid(sec));
@@ -389,7 +404,7 @@ function teamsGrid(sec) {
     const list = h("ol", { class: "rows" });
     card.top.forEach((r, i) => {
       const team = teamLabel(r[0]);
-      list.append(h("li", { class: "row" + (isHit(team.text) ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
+      list.append(h("li", { class: "row" + (isHit(r[0], team.text) ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
         h("span", { class: "rk" }, i + 1),
         h("span", { class: "who team-only", title: team.text }, h("span", { class: "nm" }, team.text)),
         h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
@@ -402,11 +417,11 @@ function teamsGrid(sec) {
 // ── SuperStar rosters ──
 function slotCell(e, cls = "") {
   if (!e || e.player === "—") return h("td", { class: cls }, h("div", { class: "slot" }, "—"));
-  const team = [e.emoji, e.team].filter(Boolean).join(" ");
+  const { text: team, color } = teamLabel(e.team_id);
   const classes = ["slot", e.tied ? "tied" : "", e.status === "confirmed" ? "dim" : "",
-    isHit(e.player, team) ? "hit" : ""].join(" ");
+    isHit(e.team_id, e.player, team) ? "hit" : ""].join(" ");
   return h("td", { class: cls },
-    h("div", { class: classes, style: e.color ? `--tc:${e.color}` : null },
+    h("div", { class: classes, style: color ? `--tc:${color}` : null },
       h("span", { class: "who", title: team ? `${e.player} - ${team}` : e.player },
         h("span", { class: "nm" }, e.player), team ? h("span", { class: "tm" }, team) : null),
       h("span", { class: "st" }, h("b", {}, e.value), " " + e.stat)));
@@ -416,7 +431,7 @@ function renderSuperstar(view) {
   const ss = state.data.superstar;
   const toggle = h("button", { class: "toggle", onclick: () => { state.alts = !state.alts; render(); } },
     state.alts ? "Hide 2nd–4th" : "Show 2nd–4th");
-  view.append(h("div", { class: "controls" }, h("span", { class: "spacer" }), searchBox()));
+  view.append(h("div", { class: "controls" }, h("span", { class: "spacer" }), ...searchBox()));
   view.append(h("div", { class: "section-head" }, h("h2", {}, superstarName()),
     h("span", { class: "min" }, `${state.data.days} · ${ss.min}`), h("span", { class: "spacer" }), toggle));
   view.append(superstarDivs());
@@ -496,6 +511,7 @@ async function setBoard(key, push = true) {
     state.data = data;
     state.board = key;
     state.min = null;                           // each board has its own qualifying bar
+    if (state.team && !data.teams[state.team]) state.team = "";  // a team not on this board
     if (key !== "gl") { state.llBoard = key; store.set("ll_board", key); }
     store.set("board", key);
     if (push) history.replaceState(null, "", `#${key}/${state.tab}`);
