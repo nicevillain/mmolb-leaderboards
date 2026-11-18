@@ -100,8 +100,10 @@ ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
   gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
 /* The search hit keeps its team fill and gains an accent outline instead. */
-.row.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 1px var(--accent);
+.row.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 3px var(--accent),
+  0 0 10px 1px var(--accent); position: relative; z-index: 1;
   background: color-mix(in srgb, var(--tc, transparent) 26%, var(--hit)); }
+.row.hit .nm { color: var(--accent); }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
 .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
