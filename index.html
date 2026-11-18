@@ -191,7 +191,7 @@ const h = (tag, attrs = {}, ...kids) => {
   return el;
 };
 
-const state = { data: null, tab: "leaders", section: "batting", min: null, query: "", alts: false };
+const state = { data: null, tab: "leaders", section: "batting", teamSection: null, min: null, query: "", alts: false };
 const store = {
   get(k) { try { return localStorage.getItem("mmolb-lb:" + k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem("mmolb-lb:" + k, v); } catch { /* storage blocked */ } },
@@ -322,23 +322,28 @@ function renderGridOnly() {
 // ── teams ──
 function renderTeams(view) {
   const tb = state.data.teams_board;
-  for (const sec of tb.sections) {
-    view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
-      h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
-    const grid = h("div", { class: "grid" });
-    for (const card of sec.cards) {
-      const list = h("ol", { class: "rows" });
-      card.top.forEach((r, i) => {
-        const team = teamLabel(r[0]);
-        list.append(h("li", { class: "row", style: team.color ? `--tc:${team.color}` : null },
-          h("span", { class: "rk" }, i + 1),
-          h("span", { class: "who team-only", title: team.text }, h("span", { class: "nm" }, team.text)),
-          h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
-      });
-      grid.append(h("article", { class: "card" }, h("h3", {}, card.label), list, summaryFoot(card, tb.min)));
-    }
-    view.append(grid);
+  const sec = tb.sections.find(s => s.key === state.teamSection) || tb.sections[0];
+  const chips = h("div", { class: "chips", role: "group", "aria-label": "Board" },
+    tb.sections.map(s => h("button", {
+      class: "chip", "aria-pressed": String(s.key === sec.key),
+      onclick: () => { state.teamSection = s.key; store.set("team_section", s.key); render(); },
+    }, s.title)));
+  view.append(h("div", { class: "controls" }, chips));
+  view.append(h("div", { class: "section-head" }, h("h2", {}, "Greater " + sec.title),
+    h("span", { class: "min" }, `${state.data.days} · ${tb.min}`)));
+  const grid = h("div", { class: "grid" });
+  for (const card of sec.cards) {
+    const list = h("ol", { class: "rows" });
+    card.top.forEach((r, i) => {
+      const team = teamLabel(r[0]);
+      list.append(h("li", { class: "row", style: team.color ? `--tc:${team.color}` : null },
+        h("span", { class: "rk" }, i + 1),
+        h("span", { class: "who team-only", title: team.text }, h("span", { class: "nm" }, team.text)),
+        h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
+    });
+    grid.append(h("article", { class: "card" }, h("h3", {}, card.label), list, summaryFoot(card, tb.min)));
   }
+  view.append(grid);
 }
 
 // ── SuperStar rosters ──
@@ -416,6 +421,8 @@ async function load() {
       h("span", { title: new Date(data.generated_at).toLocaleString() }, "Updated " + ago(data.generated_at)));
     const saved = store.get("section");
     if (saved && data.leaders.some(s => s.key === saved)) state.section = saved;
+    const savedTeam = store.get("team_section");
+    if (savedTeam && data.teams_board.sections.some(s => s.key === savedTeam)) state.teamSection = savedTeam;
     const hash = location.hash.slice(1);
     setTab(["leaders", "teams", "superstar"].includes(hash) ? hash : "leaders", false);
   } catch (e) {
