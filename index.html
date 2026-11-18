@@ -85,18 +85,23 @@ input::placeholder { color: var(--muted); }
 h2 { font: 600 19px/1.2 var(--body); margin: 0; letter-spacing: -.005em; }
 .section-head .min { color: var(--muted); font-size: 13px; }
 
-.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+/* 380px floor: three cards across at the 1320px page width (four would truncate team names). */
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 .card h3 { font: 700 13px/1.3 var(--body); margin: 0; padding: 12px 12px 11px; text-align: center;
   border-bottom: 1px solid var(--line); }
 .card h3 small { display: block; font: 500 11.5px/1.4 var(--body); color: var(--muted); margin-top: 2px; }
 ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
+/* Team colour is the emphasis: a faded wash of it fills the row, a solid bar edges it. */
+.row, .slot { background: color-mix(in srgb, var(--tc, transparent) 16%, var(--surface));
+  box-shadow: inset 4px 0 0 var(--tc, transparent); }
 .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center;
-  gap: 6px; padding: 8px 12px 8px 10px; border-bottom: 1px solid var(--row-line);
-  box-shadow: inset 3px 0 0 var(--tc, transparent); }
+  gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
-.row.hit { background: var(--hit); }
+/* The search hit keeps its team fill and gains an accent outline instead. */
+.row.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--tc, transparent) 16%, var(--hit)); }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
 .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
@@ -119,16 +124,22 @@ ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
 table.ss { border-collapse: collapse; width: 100%; min-width: 360px; }
 table.ss th { font: 700 13px/1 var(--body); color: var(--fg); text-align: left; padding: 13px 12px;
   border-bottom: 1px solid var(--line); white-space: nowrap; }
-table.ss td { padding: 9px 12px; border-bottom: 1px solid var(--row-line); vertical-align: top; }
+table.ss td { padding: 0; border-bottom: 1px solid var(--row-line); vertical-align: middle; }
+table.ss td.pos { padding: 8px 12px; }
 table.ss tr:last-child td { border-bottom: 0; }
 table.ss th:first-child, table.ss td:first-child { border-right: 1px solid var(--line); }
+/* The field-player / pitcher break, placed before the first pitching slot. */
 table.ss tr.sep td { padding: 0; height: 8px; background: var(--surface-2); border-right: 0; }
 td.pos { font-weight: 700; color: var(--fg); width: 52px; }
-.slot { box-shadow: inset 3px 0 0 var(--tc, transparent); padding-left: 10px; min-width: 160px; }
+/* One line per slot, laid out like a leaders row: "name - team" ... "value stat". */
+.slot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 8px 12px; min-width: 200px; }
+.slot .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .slot .nm { font-weight: 600; }
-.slot .tm { color: var(--team); font-size: 12.5px; }
-.slot .st { font-size: 12.5px; color: var(--muted); }
-.slot .st b { color: var(--fg); font-weight: 600; }
+.slot .tm { color: var(--team); }
+.slot .tm::before { content: " - "; color: var(--muted); }
+.slot .st { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.slot .st b { color: var(--fg); font-weight: 600; font-size: 13.5px; }
 .slot.dim { opacity: .45; font-style: italic; }
 .slot.tied .nm::after { content: " *"; color: var(--accent); }
 .alt { display: none; }
@@ -332,11 +343,12 @@ function renderTeams(view) {
 function slotCell(e, cls = "") {
   if (!e || e.player === "—") return h("td", { class: cls }, h("div", { class: "slot" }, "—"));
   const classes = ["slot", e.tied ? "tied" : "", e.status === "confirmed" ? "dim" : ""].join(" ");
+  const team = [e.emoji, e.team].filter(Boolean).join(" ");
   return h("td", { class: cls },
     h("div", { class: classes, style: e.color ? `--tc:${e.color}` : null },
-      h("div", { class: "nm" }, e.player),
-      h("div", { class: "tm" }, [e.emoji, e.team].filter(Boolean).join(" ")),
-      h("div", { class: "st" }, h("b", {}, e.value), " " + e.stat)));
+      h("span", { class: "who", title: team ? `${e.player} - ${team}` : e.player },
+        h("span", { class: "nm" }, e.player), team ? h("span", { class: "tm" }, team) : null),
+      h("span", { class: "st" }, h("b", {}, e.value), " " + e.stat)));
 }
 
 function renderSuperstar(view) {
@@ -351,8 +363,11 @@ function renderSuperstar(view) {
       h("thead", {}, h("tr", {}, h("th", {}, "Pos"), h("th", {}, "Roster"),
         h("th", { class: "alt" }, "2nd"), h("th", { class: "alt" }, "3rd"), h("th", { class: "alt" }, "4th"))));
     const body = h("tbody");
+    // Break before the first PITCHING slot, wherever it falls: the field-slot count is
+    // not fixed (an API-only publish omits RF, which put a hard-coded break after SP1).
+    const firstPitcher = d.roster.findIndex(e => /^(SP|RP|CL)/.test(e.pos));
     d.roster.forEach((e, i) => {
-      if (i === 9) body.append(h("tr", { class: "sep" }, h("td", { colspan: 5 })));
+      if (i === firstPitcher && i > 0) body.append(h("tr", { class: "sep" }, h("td", { colspan: 5 })));
       body.append(h("tr", {}, h("td", { class: "pos" }, e.pos), slotCell(e),
         d.alternates.map(alt => slotCell(alt[i], "alt"))));
     });
