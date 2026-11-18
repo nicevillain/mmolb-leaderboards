@@ -94,14 +94,14 @@ h2 { font: 600 19px/1.2 var(--body); margin: 0; letter-spacing: -.005em; }
 .card h3 small { display: block; font: 500 11.5px/1.4 var(--body); color: var(--muted); margin-top: 2px; }
 ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
 /* Team colour is the emphasis: a faded wash of it fills the row, a solid bar edges it. */
-.row, .slot { background: color-mix(in srgb, var(--tc, transparent) 16%, var(--surface));
+.row, .slot { background: color-mix(in srgb, var(--tc, transparent) 26%, var(--surface));
   box-shadow: inset 4px 0 0 var(--tc, transparent); }
 .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center;
   gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
 /* The search hit keeps its team fill and gains an accent outline instead. */
 .row.hit { box-shadow: inset 4px 0 0 var(--tc, transparent), inset 0 0 0 1px var(--accent);
-  background: color-mix(in srgb, var(--tc, transparent) 16%, var(--hit)); }
+  background: color-mix(in srgb, var(--tc, transparent) 26%, var(--hit)); }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
 .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
