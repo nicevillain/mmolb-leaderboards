@@ -23,14 +23,13 @@
   --muted: #8b8b8b;
   --team: #8fa3bf;           /* team names, the site's muted slate blue */
   --accent: #4d8eff;         /* active tab blue */
-  --hl-ink: #fff;            /* a highlighted name is its team colour mixed toward this */
   --body: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
   --bg: #f5f5f4; --surface: #ffffff; --surface-2: #efefed; --line: #dcdcd8; --row-line: #ececea;
   --fg: #161616; --muted: #6b6b6b; --team: #4a5f7d; --accent: #1f6feb;
-  --hl-ink: #000; color-scheme: light;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -117,18 +116,26 @@ ol.rows { list-style: none; margin: 0; padding: 0; flex: 1; }
   gap: 6px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--row-line); }
 .row:last-child { border-bottom: 0; }
 /* A highlighted row is outlined and glows in its own team colour (accent blue when the team
-   has none); its fill deepens, and the name takes a lightened (light theme: darkened) tint
-   of the colour so it stays legible on that fill. */
+   has none) and its fill deepens; the name keeps its normal colour. A near-black team colour
+   would vanish against the dark surface, so the highlight colour gets an OKLCH lightness
+   FLOOR (light theme: a ceiling) — hue and chroma are kept, so it still reads as the team.
+   Not an inversion: that flips the hue and a navy team would glow orange. */
 .row.hit, .slot.hit { --hc: var(--tc, var(--accent));
   box-shadow: inset 4px 0 0 var(--hc), inset 0 0 0 3px var(--hc), 0 0 12px 2px var(--hc);
   position: relative; z-index: 1;
   background: color-mix(in oklab, var(--hc) 52%, var(--surface)); }
-.row.hit .nm, .slot.hit .nm { color: color-mix(in oklab, var(--hc) 45%, var(--hl-ink)); }
+@supports (color: oklch(from red l c h)) {
+  .row.hit, .slot.hit { --hc: oklch(from var(--tc, var(--accent)) max(l, 0.62) c h); }
+  :root[data-theme="light"] .row.hit, :root[data-theme="light"] .slot.hit {
+    --hc: oklch(from var(--tc, var(--accent)) min(l, 0.58) c h); }
+}
 .slot.dim.hit { opacity: 1; }
 .rk { color: var(--fg); font-size: 13px; text-align: right; }
 .rk::after { content: "."; }
 .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .who .nm { font-weight: 600; color: var(--fg); }
+a.nm { text-decoration: none; }
+a.nm:hover { text-decoration: underline; text-underline-offset: 2px; }
 .who .tm { color: var(--team); }
 .who .tm::before { content: " - "; color: var(--muted); }
 .val { font-weight: 600; font-size: 13.5px; text-align: right; padding-left: 6px; }
@@ -247,6 +254,12 @@ function teamLabel(tid) {
   return { text: [t.league_emoji, t.emoji].filter(Boolean).join("") + " " + t.name, color: t.color };
 }
 
+// A player's name, linked to their MMOLB page when the id is known.
+function playerName(pid, name) {
+  return pid ? h("a", { class: "nm", href: `https://mmolb.com/player/${pid}`, target: "_blank", rel: "noopener" }, name)
+             : h("span", { class: "nm" }, name);
+}
+
 // "Greater Batting Leaders", "Lesser Batting Leaders", "🔮 Psychic Batting Leaders".
 function boardTitle(title) {
   const b = state.data.board;
@@ -312,7 +325,7 @@ function playerCard(card, minVal, kind, qualText) {
     list.append(h("li", { class: "row" + (hit ? " hit" : ""), style: team.color ? `--tc:${team.color}` : null },
       h("span", { class: "rk" }, i + 1),
       h("span", { class: "who", title: team.text ? `${p[1]} - ${team.text}` : p[1] },
-        h("span", { class: "nm" }, p[1]), team.text ? h("span", { class: "tm" }, team.text) : null),
+        playerName(p[0], p[1]), team.text ? h("span", { class: "tm" }, team.text) : null),
       h("span", { class: "val" }, fmtVal(r[1], card.fmt))));
   });
   if (!rows.length) list.append(h("li", { class: "empty" }, "No player meets this minimum yet."));
@@ -423,7 +436,7 @@ function slotCell(e, cls = "") {
   return h("td", { class: cls },
     h("div", { class: classes, style: color ? `--tc:${color}` : null },
       h("span", { class: "who", title: team ? `${e.player} - ${team}` : e.player },
-        h("span", { class: "nm" }, e.player), team ? h("span", { class: "tm" }, team) : null),
+        playerName(e.player_id, e.player), team ? h("span", { class: "tm" }, team) : null),
       h("span", { class: "st" }, h("b", {}, e.value), " " + e.stat)));
 }
 
